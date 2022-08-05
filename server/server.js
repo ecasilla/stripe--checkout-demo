@@ -9,6 +9,7 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
 app.use(express.static(process.env.STATIC_DIR));
 
+const price_id = ''
 // Use JSON parser for all non-webhook routes
 app.use((req, res, next) => {
   if (req.originalUrl === "/webhook") {
@@ -28,6 +29,18 @@ app.get("/success", (req, res) => {
   res.sendFile(path);
 });
 
+app.get('/config', (req, res) => {
+  res.json({
+    pricing: {
+      free: process.env.STRIPE_PRICE_FREE,
+      picnic: process.env.STRIPE_PRICE_PICNIC,
+      fiesta: process.env.STRIPE_PRICE_FIESTA,
+      carnival: process.env.STRIPE_PRICE_CARNIVAL,
+    },
+    pub_key: process.env.STRIPE_PUBLISHABLE_KEY
+  });
+})
+
 app.get('/checkout-session', async (req, res) => {
   const session = await stripe.checkout.sessions.retrieve(req.query.id, {
     expand: ['line_items']
@@ -36,6 +49,7 @@ app.get('/checkout-session', async (req, res) => {
 });
 
 app.post('/create-checkout-session', async (req, res) => {
+  const price_id = req.body.price_id
   const session = await stripe.checkout.sessions.create({
     success_url: 'http://localhost:3000/success?id={CHECKOUT_SESSION_ID}',
     cancel_url: 'http://localhost:3000/cancel',
@@ -43,7 +57,7 @@ app.post('/create-checkout-session', async (req, res) => {
     mode: 'subscription',
     allow_promotion_codes: true,
     line_items: [{
-      price: 'price_1HKBC8CZ6qsJgndJJX88EC5l', // set this to a recurring price ID
+      price: price_id, // set this to a recurring price ID
       quantity: req.body.quantity,
       // beta: dynamic_tax_rates: ['txr_1HNQ1ICZ6qsJgndJHrR7sP23', 'txr_1HNQ1gCZ6qsJgndJzETNpfvW'],
     }],
