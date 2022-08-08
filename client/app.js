@@ -63,7 +63,7 @@ function handlers(stripe) {
       },
       body: JSON.stringify({
         quantity: 1,
-        price_id: $(e).prop('id')
+        tier: e.target.id
       }),
     })
     .then((response) => response.json())

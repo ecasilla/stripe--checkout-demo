@@ -7,9 +7,18 @@ const bodyParser = require("body-parser");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-app.use(express.static(process.env.STATIC_DIR));
 
-const price_id = ''
+const DIR = process.env.STATIC_DIR
+const pricing = {
+  free: process.env.STRIPE_PRICE_FREE,
+  picnic: process.env.STRIPE_PRICE_PICNIC,
+  fiesta: process.env.STRIPE_PRICE_FIESTA,
+  carnival: process.env.STRIPE_PRICE_CARNIVAL,
+}
+
+
+app.use(express.static(DIR));
+
 // Use JSON parser for all non-webhook routes
 app.use((req, res, next) => {
   if (req.originalUrl === "/webhook") {
@@ -20,23 +29,18 @@ app.use((req, res, next) => {
 });
 
 app.get("/", (req, res) => {
-  const path = resolve(process.env.STATIC_DIR + "/index.html");
+  const path = resolve(DIR + "/index.html");
   res.sendFile(path);
 });
 
 app.get("/success", (req, res) => {
-  const path = resolve(process.env.STATIC_DIR + "/success.html");
+  const path = resolve(DIR + "/success.html");
   res.sendFile(path);
 });
 
 app.get('/config', (req, res) => {
   res.json({
-    pricing: {
-      free: process.env.STRIPE_PRICE_FREE,
-      picnic: process.env.STRIPE_PRICE_PICNIC,
-      fiesta: process.env.STRIPE_PRICE_FIESTA,
-      carnival: process.env.STRIPE_PRICE_CARNIVAL,
-    },
+    pricing,
     pub_key: process.env.STRIPE_PUBLISHABLE_KEY
   });
 })
@@ -49,19 +53,29 @@ app.get('/checkout-session', async (req, res) => {
 });
 
 app.post('/create-checkout-session', async (req, res) => {
-  const price_id = req.body.price_id
-  const session = await stripe.checkout.sessions.create({
+  const tier = req.body.tier
+  
+  // Create new Checkout Session for the order
+  // Other optional params include:
+  // [billing_address_collection] - to display billing address details on the page
+  // [customer] - if you have an existing Stripe Customer ID
+  // [customer_email] - lets you prefill the email input in the Checkout page
+  const request = {
     success_url: 'http://localhost:3000/success?id={CHECKOUT_SESSION_ID}',
     cancel_url: 'http://localhost:3000/cancel',
     payment_method_types: ['card'],
     mode: 'subscription',
     allow_promotion_codes: true,
+    automatic_tax: {
+      enabled: false,
+    },
     line_items: [{
-      price: price_id, // set this to a recurring price ID
+      price: pricing[tier], // set this to a recurring price ID
       quantity: req.body.quantity,
-      // beta: dynamic_tax_rates: ['txr_1HNQ1ICZ6qsJgndJHrR7sP23', 'txr_1HNQ1gCZ6qsJgndJzETNpfvW'],
-    }],
-  });
+    }]
+  }
+  console.log(request)
+  const session = await stripe.checkout.sessions.create(request);
   res.json({
     id: session.id,
   });
@@ -85,7 +99,7 @@ app.post(
     }
 
     // Successfully constructed event
-    console.log("✅ Success:", event.id);
+    console.log("✅ Success: ", event.id);
 
     if(event.type == 'checkout.session.completed') {
       const session = event.data.object;
